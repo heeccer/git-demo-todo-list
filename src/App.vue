@@ -1,7 +1,7 @@
 <script setup>
-app
+import TodoList from './components/TodoList.vue'
 </script>
 
 <template>
-  <HelloWorld />
+  <TodoList />
 </template>
