@@ -25,7 +25,7 @@ const tasks = ref([
   },
   {
     id: 3,
-    title: '重构目录结构（示例）',
+    title: '重构目录结构（示例）：整理 src 组件、样式与静态资源，并统一命名规范以便后续协作',
     priority: '中',
     tag: '项目',
     deadline: '',
@@ -214,12 +214,15 @@ function onFormKeydown(event) {
             </label>
             <div class="task-content">
               <div class="task-title-row">
-                <span class="task-title">{{ task.title }}</span>
+                <span class="task-title-wrap">
+                  <span class="task-title">{{ task.title }}</span>
+                  <span class="task-tooltip" role="tooltip">{{ task.title }}</span>
+                </span>
                 <span class="priority-badge" :class="priorityClass(task.priority)">{{
                   task.priority
                 }}</span>
               </div>
-              <p class="task-meta">{{ taskMeta(task) }}</p>
+              <p class="task-meta" :title="taskMeta(task)">{{ taskMeta(task) }}</p>
             </div>
             <div class="task-actions">
               <button class="action-btn" type="button" aria-label="编辑" disabled>
@@ -593,10 +596,20 @@ function onFormKeydown(event) {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.task-title-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 0;
 }
 
 .task-title {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 14px;
   font-weight: 500;
   color: #f0eef8;
@@ -607,10 +620,47 @@ function onFormKeydown(event) {
   color: #9b93b8;
 }
 
+.task-tooltip {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 8px);
+  z-index: 20;
+  max-width: min(360px, 70vw);
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.45;
+  color: #f0eef8;
+  background: rgba(28, 22, 48, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 10px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+  white-space: normal;
+  word-break: break-word;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(4px);
+  transition:
+    opacity 0.15s ease,
+    visibility 0.15s ease,
+    transform 0.15s ease;
+}
+
+.task-title-wrap:hover .task-tooltip,
+.task-title-wrap:focus-within .task-tooltip {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
 .task-meta {
   font-size: 12px;
   color: #7a7294;
   margin-top: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* 优先级徽章 */
