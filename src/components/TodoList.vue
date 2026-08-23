@@ -1,39 +1,104 @@
 <script setup>
-// 静态展示用示例数据，内容与参考图完全一致
-const tasks = [
+import { computed, ref } from 'vue'
+
+const nextId = ref(5)
+const newTitle = ref('')
+const newDeadline = ref('')
+const newPriority = ref('中')
+
+const tasks = ref([
   {
     id: 1,
     title: '准备周会要点',
     priority: '高',
-    priorityClass: 'high',
-    meta: '截止: 2026-02-12 • 标签: 工作',
+    tag: '工作',
+    deadline: '2026-02-12',
     completed: false,
   },
   {
     id: 2,
     title: '买咖啡豆',
     priority: '低',
-    priorityClass: 'low',
-    meta: '截止: 2026-02-10 • 标签: 生活',
+    tag: '生活',
+    deadline: '2026-02-10',
     completed: false,
   },
   {
     id: 3,
     title: '重构目录结构（示例）',
     priority: '中',
-    priorityClass: 'medium',
-    meta: '已完成 • 标签: 项目',
+    tag: '项目',
+    deadline: '',
     completed: true,
   },
   {
     id: 4,
     title: '阅读 30 分钟',
     priority: '中',
-    priorityClass: 'medium',
-    meta: '无截止日期 • 标签: 自我提升',
+    tag: '自我提升',
+    deadline: '',
     completed: false,
   },
-]
+])
+
+const totalCount = computed(() => tasks.value.length)
+const completedCount = computed(() => tasks.value.filter((t) => t.completed).length)
+const activeCount = computed(() => totalCount.value - completedCount.value)
+
+const lastUpdated = computed(() => {
+  const now = new Date()
+  const y = now.getFullYear()
+  const m = String(now.getMonth() + 1).padStart(2, '0')
+  const d = String(now.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+})
+
+function priorityClass(priority) {
+  if (priority === '高') return 'high'
+  if (priority === '低') return 'low'
+  return 'medium'
+}
+
+function taskMeta(task) {
+  const left = task.completed
+    ? '已完成'
+    : task.deadline
+      ? `截止: ${task.deadline}`
+      : '无截止日期'
+  return `${left} • 标签: ${task.tag}`
+}
+
+function resetForm() {
+  newTitle.value = ''
+  newDeadline.value = ''
+  newPriority.value = '中'
+}
+
+function addTask() {
+  const title = newTitle.value.trim()
+  if (!title) return
+
+  tasks.value.unshift({
+    id: nextId.value++,
+    title,
+    priority: newPriority.value,
+    tag: '未分类',
+    deadline: newDeadline.value,
+    completed: false,
+  })
+  resetForm()
+}
+
+function onFormKeydown(event) {
+  if (event.key === 'Enter') {
+    event.preventDefault()
+    addTask()
+  }
+  if (event.key === 'Escape') {
+    event.preventDefault()
+    resetForm()
+  }
+}
 </script>
 
 <template>
@@ -48,50 +113,52 @@ const tasks = [
         </div>
       </div>
       <div class="header-stats">
-        <span class="stat-pill">全部 8</span>
-        <span class="stat-pill">未完成 5</span>
-        <span class="stat-pill">已完成 3</span>
+        <span class="stat-pill">全部 {{ totalCount }}</span>
+        <span class="stat-pill">未完成 {{ activeCount }}</span>
+        <span class="stat-pill">已完成 {{ completedCount }}</span>
       </div>
     </header>
 
     <!-- 双栏主内容 -->
     <div class="main-grid">
       <!-- 左栏：新增任务 -->
-      <section class="panel panel-form">
+      <section class="panel panel-form" @keydown="onFormKeydown">
         <div class="panel-header">
           <h2 class="panel-title">新增任务</h2>
-          <span class="panel-hint">仅展示 UI，不包含任何交互逻辑</span>
+          <span class="panel-hint">填写后点击添加，或按 Enter</span>
         </div>
 
         <div class="form-group">
-          <label class="form-label">任务内容</label>
+          <label class="form-label" for="task-title">任务内容</label>
           <input
+            id="task-title"
+            v-model="newTitle"
             type="text"
             class="form-input"
-            placeholder="例如：整理本周计划（静态）"
-            disabled
+            placeholder="例如：整理本周计划"
           />
         </div>
 
         <div class="form-group">
-          <label class="form-label">截止日期</label>
-          <input type="text" class="form-input" placeholder="年 / 月 / 日" disabled />
+          <label class="form-label" for="task-deadline">截止日期</label>
+          <input
+            id="task-deadline"
+            v-model="newDeadline"
+            type="date"
+            class="form-input"
+          />
         </div>
 
         <div class="form-group">
-          <label class="form-label">优先级</label>
-          <div class="form-select" aria-disabled="true">
-            <span>中</span>
-            <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
-              <path
-                fill="currentColor"
-                d="M4.427 7.427l3.396 3.396a.25.25 0 0 0 .354 0l3.396-3.396A.25.25 0 0 0 11.396 7H4.604a.25.25 0 0 0-.177.427Z"
-              />
-            </svg>
-          </div>
+          <label class="form-label" for="task-priority">优先级</label>
+          <select id="task-priority" v-model="newPriority" class="form-select">
+            <option value="高">高</option>
+            <option value="中">中</option>
+            <option value="低">低</option>
+          </select>
         </div>
 
-        <button class="btn-add" type="button" disabled>添加</button>
+        <button class="btn-add" type="button" @click="addTask">添加</button>
       </section>
 
       <!-- 右栏：任务列表 -->
@@ -148,9 +215,11 @@ const tasks = [
             <div class="task-content">
               <div class="task-title-row">
                 <span class="task-title">{{ task.title }}</span>
-                <span class="priority-badge" :class="task.priorityClass">{{ task.priority }}</span>
+                <span class="priority-badge" :class="priorityClass(task.priority)">{{
+                  task.priority
+                }}</span>
               </div>
-              <p class="task-meta">{{ task.meta }}</p>
+              <p class="task-meta">{{ taskMeta(task) }}</p>
             </div>
             <div class="task-actions">
               <button class="action-btn" type="button" aria-label="编辑" disabled>
@@ -180,7 +249,7 @@ const tasks = [
             <span class="shortcut-sep">•</span>
             <span class="shortcut-key">Esc 取消</span>
           </div>
-          <span class="last-updated">最后更新: 2026-02-09</span>
+          <span class="last-updated">最后更新: {{ lastUpdated }}</span>
         </footer>
       </section>
     </div>
@@ -301,16 +370,17 @@ const tasks = [
   margin-bottom: 8px;
 }
 
-.form-input {
+.form-input,
+.form-select {
   width: 100%;
   padding: 10px 14px;
   font-size: 14px;
-  color: #c4bdd8;
+  color: #e8e6f0;
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 10px;
   outline: none;
-  cursor: default;
+  color-scheme: dark;
 }
 
 .form-input::placeholder {
@@ -318,20 +388,17 @@ const tasks = [
 }
 
 .form-select {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 14px;
-  font-size: 14px;
-  color: #c4bdd8;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 10px;
-  cursor: default;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 16 16'%3E%3Cpath fill='%237a7294' d='M4.427 7.427l3.396 3.396a.25.25 0 0 0 .354 0l3.396-3.396A.25.25 0 0 0 11.396 7H4.604a.25.25 0 0 0-.177.427Z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  padding-right: 32px;
+  cursor: pointer;
 }
 
-.form-select svg {
-  color: #7a7294;
+.form-select option {
+  color: #1e1640;
+  background: #f0eef8;
 }
 
 .btn-add {
@@ -344,8 +411,11 @@ const tasks = [
   background: linear-gradient(90deg, #2dd4bf 0%, #38bdf8 50%, #818cf8 100%);
   border: none;
   border-radius: 10px;
-  cursor: default;
-  opacity: 0.85;
+  cursor: pointer;
+}
+
+.btn-add:hover {
+  opacity: 0.92;
 }
 
 /* ===== 右栏筛选 ===== */
