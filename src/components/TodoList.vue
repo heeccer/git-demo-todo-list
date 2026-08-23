@@ -276,7 +276,7 @@ function onFormKeydown(event) {
                 <span class="task-title">{{ task.title }}</span>
                 <span class="priority-badge" :class="priorityClass(task.priority)">{{
                   task.priority
-                }}</span>
+                }}11111</span>
               </div>
               <p class="task-meta">{{ taskMeta(task) }}</p>
             </div>
