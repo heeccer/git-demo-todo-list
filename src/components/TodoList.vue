@@ -1,10 +1,13 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 
 const nextId = ref(5)
 const newTitle = ref('')
 const newDeadline = ref('')
 const newPriority = ref('中')
+const toastMessage = ref('')
+const pendingDeleteId = ref(null)
+let toastTimer = null
 
 const tasks = ref([
   {
@@ -89,6 +92,62 @@ function addTask() {
   resetForm()
 }
 
+function showToast(message) {
+  toastMessage.value = message
+  clearTimeout(toastTimer)
+  toastTimer = setTimeout(() => {
+    toastMessage.value = ''
+    toastTimer = null
+  }, 2500)
+}
+
+function deleteTask(id) {
+  const task = tasks.value.find((item) => item.id === id)
+  if (!task) return
+
+  tasks.value = tasks.value.filter((item) => item.id !== id)
+  showToast(`已删除：${task.title}`)
+}
+
+function askDeleteTask(id) {
+  pendingDeleteId.value = id
+}
+
+function cancelDelete() {
+  pendingDeleteId.value = null
+}
+
+function confirmDelete() {
+  const id = pendingDeleteId.value
+  pendingDeleteId.value = null
+  if (id == null) return
+  deleteTask(id)
+}
+
+function onDocumentClick(event) {
+  if (pendingDeleteId.value == null) return
+  const wrap = event.target.closest?.('.delete-wrap')
+  if (!wrap) cancelDelete()
+}
+
+function onDocumentKeydown(event) {
+  if (event.key === 'Escape' && pendingDeleteId.value != null) {
+    event.preventDefault()
+    cancelDelete()
+  }
+}
+
+onMounted(() => {
+  document.addEventListener('click', onDocumentClick)
+  document.addEventListener('keydown', onDocumentKeydown)
+})
+
+onUnmounted(() => {
+  clearTimeout(toastTimer)
+  document.removeEventListener('click', onDocumentClick)
+  document.removeEventListener('keydown', onDocumentKeydown)
+})
+
 function onFormKeydown(event) {
   if (event.key === 'Enter') {
     event.preventDefault()
@@ -165,7 +224,7 @@ function onFormKeydown(event) {
       <section class="panel panel-list">
         <div class="panel-header">
           <h2 class="panel-title">任务列表</h2>
-          <span class="panel-hint">点击、筛选与编辑均为静态展示</span>
+          <span class="panel-hint">筛选与编辑仍为静态展示，可删除任务</span>
         </div>
 
         <!-- 筛选栏 -->
@@ -220,7 +279,7 @@ function onFormKeydown(event) {
                 </span>
                 <span class="priority-badge" :class="priorityClass(task.priority)">{{
                   task.priority
-                }}</span>
+                }}11111</span>
               </div>
               <p class="task-meta" :title="taskMeta(task)">{{ taskMeta(task) }}</p>
             </div>
@@ -233,16 +292,41 @@ function onFormKeydown(event) {
                   />
                 </svg>
               </button>
-              <button class="action-btn" type="button" aria-label="删除" disabled>
-                <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
-                  <path
-                    fill="currentColor"
-                    d="M6.5 1.75a.25.25 0 0 1 .25-.25h2.5a.25.25 0 0 1 .25.25V3h-3V1.75Zm4.5 0V3h2.25a.75.75 0 0 1 0 1.5H2.75a.75.75 0 0 1 0-1.5H5V1.75C5 .784 5.784 0 6.75 0h2.5C10.216 0 11 .784 11 1.75ZM4.496 6.675l.66 6.6a.25.25 0 0 0 .249.225h5.19a.25.25 0 0 0 .249-.225l.66-6.6a.75.75 0 0 1 1.492.149l-.66 6.6A1.75 1.75 0 0 1 10.595 15h-5.19a1.75 1.75 0 0 1-1.741-1.575l-.66-6.6a.75.75 0 0 1 1.492-.15ZM6.5 6.75a.75.75 0 0 0-1.5 0v4.5a.75.75 0 0 0 1.5 0v-4.5Zm2.25 0a.75.75 0 0 0-1.5 0v4.5a.75.75 0 0 0 1.5 0v-4.5Z"
-                  />
-                </svg>
-              </button>
+              <div class="delete-wrap">
+                <button
+                  class="action-btn action-btn-delete"
+                  type="button"
+                  aria-label="删除"
+                  @click.stop="askDeleteTask(task.id)"
+                >
+                  <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+                    <path
+                      fill="currentColor"
+                      d="M6.5 1.75a.25.25 0 0 1 .25-.25h2.5a.25.25 0 0 1 .25.25V3h-3V1.75Zm4.5 0V3h2.25a.75.75 0 0 1 0 1.5H2.75a.75.75 0 0 1 0-1.5H5V1.75C5 .784 5.784 0 6.75 0h2.5C10.216 0 11 .784 11 1.75ZM4.496 6.675l.66 6.6a.25.25 0 0 0 .249.225h5.19a.25.25 0 0 0 .249-.225l.66-6.6a.75.75 0 0 1 1.492.149l-.66 6.6A1.75 1.75 0 0 1 10.595 15h-5.19a1.75 1.75 0 0 1-1.741-1.575l-.66-6.6a.75.75 0 0 1 1.492-.15ZM6.5 6.75a.75.75 0 0 0-1.5 0v4.5a.75.75 0 0 0 1.5 0v-4.5Zm2.25 0a.75.75 0 0 0-1.5 0v4.5a.75.75 0 0 0 1.5 0v-4.5Z"
+                    />
+                  </svg>
+                </button>
+                <div
+                  v-if="pendingDeleteId === task.id"
+                  class="delete-bubble"
+                  role="dialog"
+                  aria-label="确认删除"
+                  @click.stop
+                >
+                  <p class="delete-bubble-text">确定删除「{{ task.title }}」？</p>
+                  <div class="delete-bubble-actions">
+                    <button class="bubble-btn bubble-btn-cancel" type="button" @click="cancelDelete">
+                      取消
+                    </button>
+                    <button class="bubble-btn bubble-btn-confirm" type="button" @click="confirmDelete">
+                      删除
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           </li>
+          <li v-if="!tasks.length" class="task-empty">暂无任务</li>
         </ul>
 
         <!-- 底部快捷键提示 -->
@@ -256,6 +340,8 @@ function onFormKeydown(event) {
         </footer>
       </section>
     </div>
+
+    <div v-if="toastMessage" class="toast" role="status">{{ toastMessage }}</div>
   </div>
 </template>
 
@@ -710,6 +796,89 @@ function onFormKeydown(event) {
   cursor: default;
 }
 
+.action-btn-delete {
+  cursor: pointer;
+}
+
+.action-btn-delete:hover {
+  color: #fca5a5;
+  background: rgba(239, 68, 68, 0.18);
+  border-color: rgba(239, 68, 68, 0.35);
+}
+
+.delete-wrap {
+  position: relative;
+}
+
+.delete-bubble {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 10px);
+  width: 228px;
+  padding: 12px;
+  background: rgba(32, 26, 52, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 10px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+  z-index: 8;
+}
+
+.delete-bubble::after {
+  content: '';
+  position: absolute;
+  right: 10px;
+  bottom: -6px;
+  width: 10px;
+  height: 10px;
+  background: rgba(32, 26, 52, 0.96);
+  border-right: 1px solid rgba(255, 255, 255, 0.16);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.16);
+  transform: rotate(45deg);
+}
+
+.delete-bubble-text {
+  font-size: 13px;
+  line-height: 1.45;
+  color: #f0eef8;
+  margin-bottom: 10px;
+  word-break: break-word;
+}
+
+.delete-bubble-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.bubble-btn {
+  padding: 5px 12px;
+  font-size: 12px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.bubble-btn-cancel {
+  color: #d8d0ea;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+.bubble-btn-confirm {
+  color: #fff;
+  background: rgba(239, 68, 68, 0.85);
+  border: 1px solid rgba(239, 68, 68, 0.95);
+}
+
+.task-empty {
+  padding: 28px 16px;
+  text-align: center;
+  font-size: 13px;
+  color: #7a7294;
+  background: rgba(0, 0, 0, 0.15);
+  border: 1px dashed rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+}
+
 /* ===== 底部栏 ===== */
 .panel-footer {
   display: flex;
@@ -744,5 +913,23 @@ function onFormKeydown(event) {
 .last-updated {
   font-size: 12px;
   color: #6b6380;
+}
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 32px;
+  transform: translateX(-50%);
+  padding: 10px 18px;
+  font-size: 13px;
+  color: #f0eef8;
+  background: rgba(28, 22, 48, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 10px;
+  backdrop-filter: blur(12px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+  z-index: 20;
+  max-width: min(520px, calc(100% - 32px));
+  text-align: center;
 }
 </style>
