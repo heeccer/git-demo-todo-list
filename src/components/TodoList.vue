@@ -1,10 +1,12 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onUnmounted, ref } from 'vue'
 
 const nextId = ref(5)
 const newTitle = ref('')
 const newDeadline = ref('')
 const newPriority = ref('中')
+const toastMessage = ref('')
+let toastTimer = null
 
 const tasks = ref([
   {
@@ -89,6 +91,27 @@ function addTask() {
   resetForm()
 }
 
+function showToast(message) {
+  toastMessage.value = message
+  clearTimeout(toastTimer)
+  toastTimer = setTimeout(() => {
+    toastMessage.value = ''
+    toastTimer = null
+  }, 2500)
+}
+
+function deleteTask(id) {
+  const task = tasks.value.find((item) => item.id === id)
+  if (!task) return
+
+  tasks.value = tasks.value.filter((item) => item.id !== id)
+  showToast(`已删除：${task.title}`)
+}
+
+onUnmounted(() => {
+  clearTimeout(toastTimer)
+})
+
 function onFormKeydown(event) {
   if (event.key === 'Enter') {
     event.preventDefault()
@@ -165,7 +188,7 @@ function onFormKeydown(event) {
       <section class="panel panel-list">
         <div class="panel-header">
           <h2 class="panel-title">任务列表</h2>
-          <span class="panel-hint">点击、筛选与编辑均为静态展示</span>
+          <span class="panel-hint">筛选与编辑仍为静态展示，可删除任务</span>
         </div>
 
         <!-- 筛选栏 -->
@@ -230,7 +253,12 @@ function onFormKeydown(event) {
                   />
                 </svg>
               </button>
-              <button class="action-btn" type="button" aria-label="删除" disabled>
+              <button
+                class="action-btn action-btn-delete"
+                type="button"
+                aria-label="删除"
+                @click="deleteTask(task.id)"
+              >
                 <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
                   <path
                     fill="currentColor"
@@ -240,6 +268,7 @@ function onFormKeydown(event) {
               </button>
             </div>
           </li>
+          <li v-if="!tasks.length" class="task-empty">暂无任务</li>
         </ul>
 
         <!-- 底部快捷键提示 -->
@@ -253,6 +282,8 @@ function onFormKeydown(event) {
         </footer>
       </section>
     </div>
+
+    <div v-if="toastMessage" class="toast" role="status">{{ toastMessage }}</div>
   </div>
 </template>
 
@@ -660,6 +691,26 @@ function onFormKeydown(event) {
   cursor: default;
 }
 
+.action-btn-delete {
+  cursor: pointer;
+}
+
+.action-btn-delete:hover {
+  color: #fca5a5;
+  background: rgba(239, 68, 68, 0.18);
+  border-color: rgba(239, 68, 68, 0.35);
+}
+
+.task-empty {
+  padding: 28px 16px;
+  text-align: center;
+  font-size: 13px;
+  color: #7a7294;
+  background: rgba(0, 0, 0, 0.15);
+  border: 1px dashed rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+}
+
 /* ===== 底部栏 ===== */
 .panel-footer {
   display: flex;
@@ -694,5 +745,23 @@ function onFormKeydown(event) {
 .last-updated {
   font-size: 12px;
   color: #6b6380;
+}
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 32px;
+  transform: translateX(-50%);
+  padding: 10px 18px;
+  font-size: 13px;
+  color: #f0eef8;
+  background: rgba(28, 22, 48, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 10px;
+  backdrop-filter: blur(12px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+  z-index: 20;
+  max-width: min(520px, calc(100% - 32px));
+  text-align: center;
 }
 </style>
