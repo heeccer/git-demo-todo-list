@@ -44,6 +44,26 @@ jobs: # 先构建静态站点，再部署到 Pages
       - name: Build
         run: pnpm build # 对应 package.json 的 "build"：vite build，产物在 dist/
 
+      # configure-pages 会 GET /repos/.../pages；仓库从未启用 Pages 时返回 404。
+      # 先尝试用 API 以 GitHub Actions 作为构建源启用站点；GITHUB_TOKEN 往往没有 administration 权限，
+      # 失败时给出设置路径，避免只看到 Not Found。
+      - name: Ensure GitHub Pages is enabled
+        env:
+          GH_TOKEN: ${{ github.token }} # gh 命令使用当前 workflow 的 token
+        run: |
+          set -euo pipefail
+          if gh api "repos/${GITHUB_REPOSITORY}/pages" >/dev/null 2>&1; then
+            echo "GitHub Pages is already enabled."
+            exit 0
+          fi
+          echo "Pages site not found. Trying to enable build_type=workflow..."
+          if gh api --method POST "repos/${GITHUB_REPOSITORY}/pages" -f build_type='workflow'; then
+            echo "GitHub Pages enabled with GitHub Actions."
+            exit 0
+          fi
+          echo "::error::仓库尚未启用 GitHub Pages。请打开 Settings → Pages → Build and deployment → Source，选择 GitHub Actions，然后在本 workflow 上 Re-run jobs。"
+          exit 1
+
       - name: Setup Pages
         uses: actions/configure-pages@v5 # 读取仓库 Pages 配置，供后续部署使用
 
