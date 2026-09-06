@@ -1,0 +1,65 @@
+# Deploy GitHub Pages
+# 推送到默认分支 main 时构建 Vite 产物，并发布到 GitHub Pages（*.github.io）。
+name: Deploy GitHub Pages # 在 GitHub Actions 列表 / Checks 中显示的 workflow 名称
+
+on: # 触发条件
+  push: # 向指定分支推送提交时触发
+    branches: # 仅这些分支会触发发布
+      - main # 默认分支；与仓库主线保持一致
+  workflow_dispatch: # 允许在 Actions 页手动点 Run workflow，便于补发或验证
+
+# Pages 部署需要写 pages 与签发 OIDC（id-token）；其余保持最小权限。
+permissions: # 本 workflow 的 GITHUB_TOKEN 权限
+  contents: read # 检出代码
+  pages: write # 写入 GitHub Pages
+  id-token: write # 部署时进行 OIDC 身份验证
+
+# 同一时刻只跑一份生产部署；进行中的发布不取消，避免站点处于半发布状态。
+concurrency: # 并发控制
+  group: pages # 所有 Pages 发布共用一组
+  cancel-in-progress: false # false：不取消正在进行的部署
+
+jobs: # 先构建静态站点，再部署到 Pages
+  build: # job id
+    name: Build # Checks 里显示的 job 名称
+    runs-on: ubuntu-latest # 运行环境（GitHub 托管的 Ubuntu runner）
+    steps: # 本 job 内按顺序执行的步骤
+      - name: Checkout
+        uses: actions/checkout@v4 # 检出仓库代码
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4 # 安装指定版本的 pnpm
+        with:
+          version: 9 # 与 PR Check 工作流保持一致
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4 # 安装 Node.js 并配置包管理器缓存
+        with:
+          node-version: 22 # Node.js 版本
+          cache: pnpm # 按 pnpm-lock.yaml 缓存依赖
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile # 按锁文件安装，CI 中禁止改 lockfile
+
+      - name: Build
+        run: pnpm build # 对应 package.json 的 "build"：vite build，产物在 dist/
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5 # 读取仓库 Pages 配置，供后续部署使用
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3 # 把构建产物交给 Pages 部署 job
+        with:
+          path: dist # Vite 默认输出目录
+
+  deploy: # job id
+    name: Deploy # Checks 里显示的 job 名称
+    needs: build # 必须等构建产物上传成功
+    runs-on: ubuntu-latest
+    environment: # 绑定 GitHub Pages 环境，部署后可在此看到站点 URL
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }} # 部署完成后的站点地址
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment # 供 environment.url 读取 page_url
+        uses: actions/deploy-pages@v4 # 官方 Pages 部署 Action
