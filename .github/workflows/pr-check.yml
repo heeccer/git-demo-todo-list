@@ -1,0 +1,68 @@
+# PR Check
+# 非 Draft 的 PR 才执行检查。Draft 时跳过后续 job；转为 Ready 后再跑 lint、jest。
+name: PR Check # 在 GitHub Actions 列表 / Checks 中显示的 workflow 名称
+
+# 仅监听 PR 事件，不会在直接 push 到默认分支时触发。
+# 显式列出 types 后，只会响应这些活动（未列出的如 labeled、edited 不会触发）。
+on: # 触发条件
+  pull_request: # 针对 Pull Request 的活动
+    types: # 监听的 PR 活动类型；未列出的不会触发本 workflow
+      - opened # 新建 PR
+      - synchronize # 向 PR 分支推送新提交
+      - reopened # 关闭后重新打开
+      - ready_for_review # Draft 转为正式待审查
+      # 未包含：edited、labeled、assigned、review_requested 等，避免无关改动反复跑 CI
+
+# 限制本 workflow 的 GITHUB_TOKEN 为只读（所有 scope 均为 read，无 write）。
+# 本检查只需拉代码和跑脚本，不需要推送、改 PR 或发评论。
+permissions: read-all # 只读权限；等价于各 scope 都设为 read
+
+# 同一 workflow + 同一 ref（PR 分支）归为一组；新运行会取消组内仍在进行的旧运行。
+concurrency: # 并发控制，避免同一 PR 同时跑多份检查
+  group: ${{ github.workflow }}-${{ github.ref }} # 分组键：workflow 名 + ref
+  cancel-in-progress: true # true：同组新运行会取消仍在进行的旧运行
+
+jobs: # 本 workflow 包含的作业；按 needs 决定先后
+  # Draft PR：本 job 被跳过，依赖它的后续 job 也不会执行。
+  # 非 Draft / 从 Draft 转为 ready_for_review：本 job 成功，后面才跑全部检查。
+  prepare: # job id，供其他 job 的 needs 引用
+    name: Skip draft # Checks 里显示的 job 名称
+    runs-on: ubuntu-latest # 运行环境（GitHub 托管的 Ubuntu runner）
+    if: github.event.pull_request.draft == false # 条件：仅非 Draft 才执行
+    steps: # 本 job 内按顺序执行的步骤
+      - name: Continue for non-draft PRs # 步骤显示名
+        run: echo "Not a draft PR, continue with all checks." # 要执行的 shell 命令
+
+  # 依赖 prepare：Draft 时 prepare 为 skipped，本 job 自动跳过。
+  lint-and-test: # job id
+    name: Lint and Jest # Checks 里显示的 job 名称
+    needs: prepare # 依赖的 job；被依赖方 skipped/failed 时本 job 默认不跑
+    runs-on: ubuntu-latest # 运行环境
+    steps: # 本 job 内按顺序执行的步骤
+      # 拉取 PR 对应的代码（含 merge 预览提交）。
+      - name: Checkout # 步骤显示名
+        uses: actions/checkout@v4 # 复用官方 action：检出仓库代码
+
+      # 先装 pnpm，再 setup-node，才能启用 pnpm 依赖缓存。
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4 # 安装指定版本的 pnpm
+        with: # 传给该 action 的入参
+          version: 9 # pnpm 主版本
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4 # 安装 Node.js 并配置包管理器缓存
+        with:
+          node-version: 22 # Node.js 版本
+          cache: pnpm # 按 pnpm-lock.yaml 缓存依赖
+
+      # --frozen-lockfile：不更新锁文件；锁文件与 package.json 不一致时直接失败。
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile # 按锁文件安装，CI 中禁止改 lockfile
+
+      # 对应 package.json 的 "lint"：eslint "src/**/*.{js,ts,vue,jsx,tsx}"
+      - name: Lint
+        run: pnpm lint # 执行 ESLint
+
+      # 对应 package.json 的 "jest"：jest --config jest.config.js
+      - name: Jest
+        run: pnpm jest # 执行 Jest
